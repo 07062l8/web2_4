@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <meta charset="UTF-8">
+  <title>Stock Analytics Platform</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body class="bg-light">
+  <div class="container py-5">
+    <h2 class="mb-4">Stock analytics platform</h2>
+
+    <div class="row g-3 mb-4 p-3 bg-white shadow-sm rounded">
+      <div class="col-md-3">
+        <label>Ticker</label>
+        <select id="ticker" class="form-select">
+          <option value="AAPL">Apple (AAPL)</option>
+          <option value="GOOGL">Google (GOOGL)</option>
+          <option value="MSFT">Microsoft (MSFT)</option>
+          <option value="AMZN">Amazon (AMZN)</option>
+          <option value="META">Meta (META)</option>
+        </select>
+      </div>
+      <div class="col-md-3">
+        <label>Field</label>
+        <select id="field" class="form-select">
+          <option value="close">Close Price</option>
+          <option value="volume">Volume</option>
+          <option value="rsi">RSI</option>
+          <option value="volatility">Volatility</option>
+        </select>
+      </div>
+      <div class="col-md-2">
+        <label>Start Date</label>
+        <input type="date" id="startDate" class="form-control" value="2023-01-01">
+      </div>
+      <div class="col-md-2">
+        <label>End Date</label>
+        <input type="date" id="endDate" class="form-control" value="2023-12-31">
+      </div>
+      <div class="col-md-2 d-flex align-items-end">
+        <button onclick="updateDashboard()" class="btn btn-primary w-100">Update</button>
+      </div>
+    </div>
+
+    <div class="row mb-4 text-center">
+      <div class="col-md-3">
+        <div class="card p-3">
+          <h5>Avg</h5>
+          <h3 id="avg">-</h3>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card p-3">
+          <h5>Min</h5>
+          <h3 id="min">-</h3>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card p-3">
+          <h5>Max</h5>
+          <h3 id="max">-</h3>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card p-3">
+          <h5>Std Dev</h5>
+          <h3 id="std">-</h3>
+        </div>
+      </div>
+    </div>
+
+    <div class="bg-white p-4 shadow-sm rounded">
+      <canvas id="myChart"></canvas>
+    </div>
+  </div>
+
+  <script>
+    let myChart;
+  
+    async function updateDashboard() {
+      const ticker = document.getElementById('ticker').value;
+      const field = document.getElementById('field').value;
+      const start = document.getElementById('startDate').value;
+      const end = document.getElementById('endDate').value;
+
+      try {
+        const [dataRes, metricsRes] = await Promise.all([
+          fetch(`/api/measurements?ticker=${ticker}&start_date=${start}&end_date=${end}`),
+          fetch(`/api/metrics?field=${field}&ticker=${ticker}&start_date=${start}&end_date=${end}`)
+        ]);
+
+        if (!dataRes.ok || !metricsRes.ok) {
+          const errorInfo = await metricsRes.json();
+          throw new Error(errorInfo.error || "No data found for this period");
+        }
+
+        const data = await dataRes.json();
+        const metrics = await metricsRes.json();
+
+        document.getElementById('avg').innerText = metrics.average ? metrics.average.toFixed(2) : '0';
+        document.getElementById('min').innerText = metrics.min ? metrics.min.toFixed(2) : '0';
+        document.getElementById('max').innerText = metrics.max ? metrics.max.toFixed(2) : '0';
+        document.getElementById('std').innerText = metrics.stdDev ? metrics.stdDev.toFixed(2) : '0';
+
+        const labels = data.map(item => {
+          const d = new Date(item.timestamp);
+          return d.toLocaleDateString(); 
+        });
+        const values = data.map(item => item[field]);
+
+        const ctx = document.getElementById('myChart').getContext('2d');
+
+        if (myChart) {
+          myChart.destroy();
+        }
+
+        myChart = new Chart(ctx, {
+          type: 'line',
+          data: {
+            labels: labels,
+            datasets: [{
+              label: `${ticker} - ${field.toUpperCase()}`,
+              data: values,
+              borderColor: '#0d6efd', 
+              backgroundColor: 'rgba(13, 110, 253, 0.1)',
+              borderWidth: 2,
+              fill: true,
+              tension: 0.3 
+            }]
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              legend: { position: 'top' }
+            },
+            scales: {
+              y: { beginAtZero: false } 
+            }
+          }
+        });
+
+      } catch (err) {
+        console.error("Error updating dashboard:", err);
+        alert(`Warning: ${err.message}`);
+
+        if (myChart) myChart.destroy();
+        ['avg', 'min', 'max', 'std'].forEach(id => {
+          document.getElementById(id).innerText = '-';
+        });
+      }
+    }
+
+    window.onload = updateDashboard;
+  </script>
+</body>
+
+</html>
