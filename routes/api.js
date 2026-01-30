@@ -15,11 +15,15 @@ router.get('/metrics', async (req, res) => {
         if (!start_date || !end_date) {
             return res.status(400).json({ error: "The start_date and end_date parameters are required." });
         }
-        
+
         const start = new Date(start_date);
         const end = new Date(end_date);
         if (isNaN(start) || isNaN(end)) {
             return res.status(400).json({ error: "Incorrect date format. Use YYYY-MM-DD." });
+        }
+
+        if (end < start) {
+            return res.status(400).json({ error: "End date cannot be earlier than start date." });
         }
 
         const stats = await Measurement.aggregate([
@@ -54,11 +58,11 @@ router.get('/metrics', async (req, res) => {
 router.get('/measurements', async (req, res) => {
     try {
         const { start_date, end_date, ticker } = req.query;
-    
+
         const query = {
-            timestamp: { 
-                $gte: new Date(start_date), 
-                $lte: new Date(end_date) 
+            timestamp: {
+                $gte: new Date(start_date),
+                $lte: new Date(end_date)
             },
             ticker: ticker
         };
